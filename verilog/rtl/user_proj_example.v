@@ -69,17 +69,21 @@ module user_proj_example #(
     output [2:0] irq
 );
     wire clk;
-    wire rst;
+    //wire rst;
 
     wire [`MPRJ_IO_PADS-1:0] io_in;
     wire [`MPRJ_IO_PADS-1:0] io_out;
     wire [`MPRJ_IO_PADS-1:0] io_oeb;
-    wire clk,reset, [1:0]sel, clkout;
-    iiitb_brg mod1(clk,reset,sel,clkout);
+    wire reset,clkout;
+	wire [1:0]sel;
+	iiitb_brg mod1(.clk(clk),.reset(reset),.sel(sel),.clkout(.clkout));
     
 
     // IO
-    assign io_out = count;
+    assign clk = wb_clk_i;
+	assign reset = wb_rst_i;
+	assign sel = io_in[35:34];
+	assign io_out[35] = clkout;
     assign io_oeb = {(`MPRJ_IO_PADS-1){rst}};
 
     // IRQ
@@ -91,7 +95,7 @@ module user_proj_example #(
 endmodule
 
 // Code your design here
-`timescale 100ps / 100ps
+
 
 module iiitb_brg( clk,reset,sel,clkout);
 	 
