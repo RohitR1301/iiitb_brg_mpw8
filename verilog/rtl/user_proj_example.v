@@ -74,20 +74,9 @@ module user_proj_example #(
     wire [`MPRJ_IO_PADS-1:0] io_in;
     wire [`MPRJ_IO_PADS-1:0] io_out;
     wire [`MPRJ_IO_PADS-1:0] io_oeb;
-
-    wire [31:0] rdata; 
-    wire [31:0] wdata;
-    wire [BITS-1:0] count;
-
-    wire valid;
-    wire [3:0] wstrb;
-    wire [31:0] la_write;
-
-    // WB MI A
-    assign valid = wbs_cyc_i && wbs_stb_i; 
-    assign wstrb = wbs_sel_i & {4{wbs_we_i}};
-    assign wbs_dat_o = rdata;
-    assign wdata = wbs_dat_i;
+    wire clk,reset, [1:0]sel, clkout;
+    iiitb_brg mod1(clk,reset,sel,clkout);
+    
 
     // IO
     assign io_out = count;
@@ -96,70 +85,134 @@ module user_proj_example #(
     // IRQ
     assign irq = 3'b000;	// Unused
 
-    // LA
-    assign la_data_out = {{(127-BITS){1'b0}}, count};
-    // Assuming LA probes [63:32] are for controlling the count register  
-    assign la_write = ~la_oenb[63:32] & ~{BITS{valid}};
-    // Assuming LA probes [65:64] are for controlling the count clk & reset  
-    assign clk = (~la_oenb[64]) ? la_data_in[64]: wb_clk_i;
-    assign rst = (~la_oenb[65]) ? la_data_in[65]: wb_rst_i;
+    
 
-    counter #(
-        .BITS(BITS)
-    ) counter(
-        .clk(clk),
-        .reset(rst),
-        .ready(wbs_ack_o),
-        .valid(valid),
-        .rdata(rdata),
-        .wdata(wbs_dat_i),
-        .wstrb(wstrb),
-        .la_write(la_write),
-        .la_input(la_data_in[63:32]),
-        .count(count)
-    );
-
+    
 endmodule
 
-module counter #(
-    parameter BITS = 32
-)(
-    input clk,
-    input reset,
-    input valid,
-    input [3:0] wstrb,
-    input [BITS-1:0] wdata,
-    input [BITS-1:0] la_write,
-    input [BITS-1:0] la_input,
-    output ready,
-    output [BITS-1:0] rdata,
-    output [BITS-1:0] count
-);
-    reg ready;
-    reg [BITS-1:0] count;
-    reg [BITS-1:0] rdata;
+// Code your design here
+`timescale 100ps / 100ps
 
-    always @(posedge clk) begin
-        if (reset) begin
-            count <= 0;
-            ready <= 0;
-        end else begin
-            ready <= 1'b0;
-            if (~|la_write) begin
-                count <= count + 1;
-            end
-            if (valid && !ready) begin
-                ready <= 1'b1;
-                rdata <= count;
-                if (wstrb[0]) count[7:0]   <= wdata[7:0];
-                if (wstrb[1]) count[15:8]  <= wdata[15:8];
-                if (wstrb[2]) count[23:16] <= wdata[23:16];
-                if (wstrb[3]) count[31:24] <= wdata[31:24];
-            end else if (|la_write) begin
-                count <= la_write & la_input;
-            end
-        end
-    end
+module iiitb_brg( clk,reset,sel,clkout);
+	 
+input clk,reset;
+input [1:0]sel;
+output reg clkout;
 
+parameter DIV1=34;//fsystem/f1152*2,fsystem=125Mhz
+
+reg[5:0] cnt1=0;
+reg[1:0] cnt2=0;
+reg[2:0] cnt3=0;
+reg[3:0] cnt4=0;
+always@(posedge clk)
+	case(sel)
+		//clk for 115200bps
+	2'b00:
+		begin
+		if(reset)
+			begin
+			cnt1<=0;
+			cnt2<=0;
+			cnt3<=0;
+			cnt4<=0;
+			clkout<=0;
+			end
+		else
+		begin
+			if(cnt1==(DIV1-1))
+				begin
+				cnt1 <= 0;
+				clkout<=~clkout;
+				end
+			else
+				cnt1<=cnt1+1;
+		end
+		end
+
+		//clk for 38400bps
+	2'b01:
+		begin
+		if(reset)
+			begin
+			cnt2<=0;
+			clkout<=0;
+			end
+		else
+			begin
+			if(cnt1==(DIV1-1))
+				begin
+					cnt1<=0;
+					if(cnt2==2)
+						begin
+						cnt2<=0;
+						clkout<=~clkout;
+						end
+					else
+						cnt2<=cnt2+1;
+				end
+			else
+				cnt1<=cnt1+1;
+		end
+		
+		end
+
+
+		//clk for 19200bps
+	2'b10:
+		begin
+		if(reset)
+			begin
+			cnt3<=0;
+			clkout<=0;
+			end
+		else
+		begin
+		if(cnt1==(DIV1-1))
+			begin
+			cnt1<=0;
+			
+			if(cnt3==5)
+				begin
+				cnt3<=0;
+				clkout<=~clkout;
+				end
+			else
+				cnt3<=cnt3+1;
+			end
+		else 
+			cnt1<=cnt1+1;
+		end
+		
+		end
+
+		//clk for 9600bps
+	2'b11:
+		begin
+		if(reset)
+			begin
+			cnt4<=0;
+			clkout<=0;
+			end
+		else
+			begin
+			if(cnt1==(DIV1-1))
+				begin
+					cnt1<=0;
+					if(cnt4==11)
+					begin
+					cnt4<=0;
+					clkout<=~clkout;
+					end
+					else
+					cnt4<=cnt4+1;
+				end
+			else
+				cnt1<=cnt1+1;
+			end
+		end
+	
+	endcase
 endmodule
+
 `default_nettype wire
